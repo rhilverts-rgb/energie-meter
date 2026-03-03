@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meterstand invoeren</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+      max-width: 400px;
+      margin: auto;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    input {
+      width: 95%;
+      padding: 12px;
+      margin-top: 6px;
+      margin-bottom: 16px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: #2d6cdf;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    button:active {
+      opacity: 0.8;
+    }
+    .message {
+      margin-top: 15px;
+      text-align: center;
+      font-weight: 500;
+    }
+    .success {
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<div id="lastReading" style="background:#f0f3f7; padding:12px; border-radius:10px; margin-bottom:15px; font-size:14px;">
+  Laatste meting laden...
+</div>
+<body>
+  <div class="card">
+    <h2>Meterstand invoeren</h2>
+
+    <label>Datum</label>
+    <input type="date" id="date">
+
+    <label>Gas (m³)</label>
+    <input type="number" id="gas" step="1">
+
+    <label>Elektra (kWh)</label>
+    <input type="number" id="electricity" step="1">
+
+    <button onclick="saveReading()">Opslaan</button>
+
+    <div id="message" class="message"></div>
+<div id="dashboard" style="margin-top:25px; font-size:14px;"></div>
+  </div>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  const supabase = createClient(
+    "https://hnxlbukawzvwyzmyqopx.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhueGxidWthd3p2d3l6bXlxb3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NDU4MTMsImV4cCI6MjA4ODEyMTgxM30.lBzOf8qEegA5mfRqBzUrjD7vXyQy0b4uo5ymM9La7cE"
+  );
+
+async function loadLastReading() {
+  const { data, error } = await supabase
+    .from("meter_readings")
+    .select("*")
+    .order("reading_date", { ascending: false })
+    .limit(1);
+
+  if (data && data.length > 0) {
+    const last = data[0];
+    document.getElementById("lastReading").innerHTML = `
+      <strong>Laatste meting:</strong><br>
+      Datum: ${last.reading_date}<br>
+      Gas: ${last.gas} m³<br>
+      Elektra: ${last.electricity} kWh
+    `;
+  } else {
+    document.getElementById("lastReading").innerText =
+      "Nog geen metingen gevonden.";
+  }
+}
+
+loadLastReading();
+
+  // Automatisch vandaag invullen
+  document.getElementById("date").value =
+    new Date().toISOString().split("T")[0];
+
+  window.saveReading = async function () {
+    const date = document.getElementById("date").value;
+    const gas = parseFloat(document.getElementById("gas").value);
+    const electricity = parseFloat(document.getElementById("electricity").value);
+    const message = document.getElementById("message");
+
+    if (!date || isNaN(gas) || isNaN(electricity)) {
+      message.textContent = "Vul alle velden correct in.";
+      message.className = "message error";
+      return;
+    }
+
+    const { error } = await supabase
+      .from("meter_readings")
+      .insert([{ reading_date: date, gas, electricity }]);
+
+    if (error) {
+      message.textContent = "Fout: " + error.message;
+      message.className = "message error";
+    } else {
+      message.textContent = "Meterstand opgeslagen ✔";
+      message.className = "message success";
+      document.getElementById("gas").value = "";
+      document.getElementById("electricity").value = "";
+    }
+  };
+async function loadDashboard() {
+  const { data, error } = await supabase
+    .from("yearly_consumption")
+    .select("*")
+    .order("year", { ascending: false })
+    .limit(1);
+
+  if (data && data.length > 0) {
+    const yearData = data[0];
+    document.getElementById("dashboard").innerHTML = `
+      <strong>Verbruik dit jaar:</strong><br>
+      Gas: ${Math.round(yearData.gas_consumption)} m³<br>
+      Elektra: ${Math.round(yearData.electricity_consumption)} kWh
+    `;
+  }
+}
+
+loadDashboard();
+</script>
+
+</body>
+</html>
